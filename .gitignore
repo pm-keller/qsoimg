@@ -1,0 +1,13 @@
+*.log
+*.fits
+.nextflow*
+report*
+
+casa/
+work/
+.nextflow/
+briggs_experiment/
+nbooks/*.ms/
+nbooks/*.tb/
+nbooks/*.fits/
+nbooks/.ipynb_checkpoints/
