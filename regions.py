@@ -112,7 +112,7 @@ for i, ci in enumerate(clist):
         ma_regions.append(regions[i+1])
 
 # use FIRST regions to create mask, if they are provided
-if args.first != "":
+if args.first != "" and os.path.exists(args.first):
     with open(args.first) as file:
         ma_regions = [regions[0],] + [line.rstrip() for line in file][1:]
 
