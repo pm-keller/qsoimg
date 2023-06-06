@@ -8,6 +8,28 @@ params.cell = 0.3 // cell size
 params.imreg = params.imsize * params.cell / (2 * 60) 
 // radius in arcmin of region to be imaged
 
+process mkdir {
+  cache = 'lenient'
+  errorStrategy 'ignore'
+  
+  input:
+  path ms
+
+  script:
+  obsname = ms.getSimpleName()
+  imagingDir = params.root.resolve("imaging/")
+  cleanDir = imagingDir.resolve("${obsname}/clean/")
+  flaggingDir = imagingDir.resolve("${obsname}/flagging/")
+  selfcalDir = imagingDir.resolve("${obsname}/selfcal/")
+
+  """
+  mkdir -p $imagingDir
+  mkdir -p $cleanDir
+  mkdir -p $flaggingDir
+  mkdir -p $selfcalDir
+  """
+}
+
 process aoflagger {
   cache = 'lenient'
   errorStrategy 'ignore'
@@ -339,11 +361,6 @@ process imageOutliers {
   cleanDir = params.root.resolve("imaging/${obsname}/clean/")
 
   """ 
-  sleep 30
-
-  # remove copies of intermediate measurement sets to free up space
-  rm -rf $params.root/imaging/$obsname/*/*.ms
-
   # make copy of measurement set to store residual
   cp -rL $ms $msres
 

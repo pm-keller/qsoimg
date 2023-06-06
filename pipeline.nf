@@ -9,7 +9,7 @@ params.imreg = params.imsize * params.cell / (2 * 60)
 // radius in arcmin of region to be imaged
 
 // PROCESSES FOR FIRST ROUND OF IMAGING  
-include { aoflagger; wscleanDirty; getRegions; wsclean as wsclean1; imageOutliers as imageOutliers1; getInitSolInt; getSolInt; selfCal as selfCal1} from './modules.nf'
+include { mkdir; aoflagger; wscleanDirty; getRegions; wsclean as wsclean1; imageOutliers as imageOutliers1; getInitSolInt; getSolInt; selfCal as selfCal1} from './modules.nf'
 // PROCESSES FOR SECOND ROUND OF IMAGING  
 include { wsclean as wsclean2; imageOutliers as imageOutliers2; selfCal as selfCal2} from './modules.nf'
 // PROCESSES FOR THIRD ROUND OF IMAGING  
@@ -26,6 +26,7 @@ workflow imagingPipeline {
   main:
 
   // FIRST ROUND
+  mkdir(ms)
   aoflagger(ms, params.aostrat)
   wscleanDirty(ms, params.cell, params.imsize, -0.5, 32)
   getRegions(wscleanDirty.out.ms, wscleanDirty.out.dirty, params.imreg.round(2))
