@@ -189,7 +189,6 @@ process getRegions {
 }
 
 process wscleanStokesV {
-  publishDir {params.root.resolve("imaging/${obsname}/clean/")}, mode: 'copy'
   cache = 'lenient'
   errorStrategy 'ignore'
 
@@ -202,10 +201,12 @@ process wscleanStokesV {
 
   output:
   path '*MFS-image.fits', emit: image
+  path ms, emit: ms
 
   script:
   obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
   imname = "${ms.getSimpleName()}-Stokes-V.im"
+  cleanDir = params.root.resolve("imaging/${obsname}/clean/")
 
   """
   wsclean -name "${imname}" \
@@ -229,12 +230,14 @@ process wscleanStokesV {
   $opt \
   $ms
 
-  # remove images to free up space
+  # remove output channel images and dirty images to free up space
   rm -rf *.im-000*-*.fits
   rm -rf *.im-*dirty.fits
   rm -rf *.im-*psf.fits
   rm -rf *.im-*model.fits
   rm -rf *.im-*residual.fits
+  cp -rf *.fits $cleanDir
+
   """
 }
 
