@@ -197,6 +197,7 @@ process wscleanStokesV {
   val cell
   val size
   val briggs
+  val ncpu
   val opt
 
   output:
@@ -225,6 +226,9 @@ process wscleanStokesV {
   -deconvolution-channels 9 \
   -fit-spectral-pol 3 \
   -parallel-deconvolution 2048 \
+  -deconvolution-threads $ncpu \
+  -parallel-gridding $ncpu \
+  -parallel-reordering $ncpu \
   -no-update-model-required \
   -save-source-list \
   $opt \

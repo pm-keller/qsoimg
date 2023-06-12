@@ -55,7 +55,7 @@ workflow imagingPipeline {
   // FINAL IMAGING
   subtractOutliers(selfCal4.out.ms, 32)
   wscleanFinal2(subtractOutliers.out.ms, params.cell, params.imsize, false, 4, 0.3, -0.5, 32, "-apply-primary-beam") 
-  wscleanStokesV(wscleanFinal2.out.ms, params.cell, params.imsize, -0.5, "") 
+  wscleanStokesV(wscleanFinal2.out.ms, params.cell, params.imsize, -0.5, 32, "") 
   removeFiles(wscleanStokesV.out.ms)
 
 }
