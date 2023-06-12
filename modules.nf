@@ -210,15 +210,22 @@ process wscleanStokesV {
   """
   wsclean -name "${imname}" \
   -size $size $size \
-  -niter 0 \
+  -niter 1 \
+  -auto-mask 4 \
+  -auto-threshold 0.3 \
+  -mgain 0.8 \
+  -gain 0.1 \
   -weight briggs $briggs \
   -scale "${cell}arcsec" \
   -taper-gaussian 1.5asec \
   -use-wgridder \
   -join-channels \
   -channels-out 9 \
+  -deconvolution-channels 9 \
+  -fit-spectral-pol 3 \
+  -parallel-deconvolution 2048 \
   -no-update-model-required \
-  -pol V \
+  -save-source-list \
   $opt \
   $ms
 
@@ -496,7 +503,7 @@ process getSolInt {
   $params.pythonpath.projdir $projectDir/optsolint.py --ms $ms --solint_min \$tmin --calmode $calmode
 
   # copy solution interval to self-calibration directory
-  cp -rf solint.pickle selfcalDir
+  cp -rf solint.pickle $selfcalDir
   """
 }
 
@@ -525,6 +532,7 @@ process selfCal {
   #! $params.pythonpath.container
 
   import os
+  import glob
   import shutil
   import casatasks
   import casatools
@@ -664,7 +672,7 @@ process selfCal {
   shutil.rmtree("${selfcal}.tmp")
 
   # copy self-calibration tables to self-calibration directory
-  cp -rf *.tb $selfcalDir
+  os.system("cp -rf *.tb $selfcalDir") 
   """
 }
 
@@ -720,6 +728,10 @@ process removeFiles {
   rm -rf $projectDir/work/*/*/$obsname*beam*
   rm -rf $projectDir/work/*/*/$obsname*selfcal*
   rm -rf $params.root/imaging/$obsname/*/*.ms
+  rm -rf $params.root/imaging/$obsname/*/*beam*.fits
+  rm -rf $params.root/imaging/$obsname/*/*model.fits
+  rm -rf $params.root/imaging/$obsname/*/*residual.fits
+  rm -rf $params.root/imaging/$obsname/*/*pb.fits
   rm -rf $params.root/inspect/$obsname/*mask.im
 
   """

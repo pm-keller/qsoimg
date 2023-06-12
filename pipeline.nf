@@ -55,8 +55,8 @@ workflow imagingPipeline {
   // FINAL IMAGING
   subtractOutliers(selfCal4.out.ms, 32)
   wscleanFinal2(subtractOutliers.out.ms, params.cell, params.imsize, false, 4, 0.3, -0.5, 32, "-apply-primary-beam") 
-  wscleanStokesV(subtractOutliers.out.ms, params.cell, 2048, -0.5, "") 
-  //removeFiles(wscleanFinal2.out.ms)
+  wscleanStokesV(wscleanFinal2.out.ms, params.cell, params.imsize, -0.5, "") 
+  removeFiles(wscleanFinal2.out.ms)
 
 }
 
@@ -116,13 +116,13 @@ workflow {
     //params.msdir.resolve("QSO-J1036-0232.ms"),
     //params.msdir.resolve("QSO-J1048-0109.ms"),
     //params.msdir.resolve("QSO-J1048+4637.ms"),
-    params.msdir.resolve("QSO-J1110-1329.ms"),
-    params.msdir.resolve("QSO-J1120+0641.ms"),
-    params.msdir.resolve("QSO-J1137+0045.ms"),
-    params.msdir.resolve("QSO-J1137+3549.ms"),
-    params.msdir.resolve("QSO-J1148+0702.ms"),
-    params.msdir.resolve("QSO-J1148+5251.ms"),
-    params.msdir.resolve("QSO-J1152+0055.ms"),
+    //params.msdir.resolve("QSO-J1110-1329.ms"),
+    //params.msdir.resolve("QSO-J1120+0641.ms"),
+    //params.msdir.resolve("QSO-J1137+0045.ms"),
+    //params.msdir.resolve("QSO-J1137+3549.ms"),
+    //params.msdir.resolve("QSO-J1148+0702.ms"),
+    //params.msdir.resolve("QSO-J1148+5251.ms"),
+    //params.msdir.resolve("QSO-J1152+0055.ms"),
     //params.msdir.resolve("QSO-J1201+0133.ms"),
     //params.msdir.resolve("QSO-J1205-0000.ms"),
     //params.msdir.resolve("QSO-J1207-0005.ms"),
@@ -181,24 +181,24 @@ workflow {
     //params.msdir.resolve("QSO-J2211-3206.ms"),
     //params.msdir.resolve("QSO-J2215+2606.ms"),
     //params.msdir.resolve("QSO-J2216-0016.ms"),
-    //params.msdir.resolve("QSO-J2219+0102.ms"),
-    //params.msdir.resolve("QSO-J2228+0128.ms"),
-    //params.msdir.resolve("QSO-J2228+0152.ms"),
-    //params.msdir.resolve("QSO-J2229+1457.ms"),
-    //params.msdir.resolve("QSO-J2232+0012.ms"),
-    //params.msdir.resolve("QSO-J2232+2930.ms"),
-    //params.msdir.resolve("QSO-J2236+0032.ms"),
-    //params.msdir.resolve("QSO-J2239+0207.ms"),
-    //params.msdir.resolve("QSO-J2240-1839.ms"),
-    //params.msdir.resolve("QSO-J2255+0503.ms"),
-    //params.msdir.resolve("QSO-J2310+1855.ms"),
-    //params.msdir.resolve("QSO-J2315-0023.ms"),
-    //params.msdir.resolve("QSO-J2318-0246.ms"),
-    //params.msdir.resolve("QSO-J2318-3029.ms"),
+    params.msdir.resolve("QSO-J2219+0102.ms"),
+    params.msdir.resolve("QSO-J2228+0128.ms"),
+    params.msdir.resolve("QSO-J2228+0152.ms"),
+    params.msdir.resolve("QSO-J2229+1457.ms"),
+    params.msdir.resolve("QSO-J2232+0012.ms"),
+    params.msdir.resolve("QSO-J2232+2930.ms"),
+    params.msdir.resolve("QSO-J2236+0032.ms"),
+    params.msdir.resolve("QSO-J2239+0207.ms"),
+    params.msdir.resolve("QSO-J2240-1839.ms"),
+    params.msdir.resolve("QSO-J2255+0503.ms"),
+    params.msdir.resolve("QSO-J2310+1855.ms"),
+    params.msdir.resolve("QSO-J2315-0023.ms"),
+    params.msdir.resolve("QSO-J2318-0246.ms"),
+    params.msdir.resolve("QSO-J2318-3029.ms"),
     //params.msdir.resolve("QSO-J2318-3113.ms"),
     //params.msdir.resolve("QSO-J2329-0301.ms"),
-    //params.msdir.resolve("QSO-J2348-3054.ms"),
-    //params.msdir.resolve("QSO-J2356+0017.ms"),
+    params.msdir.resolve("QSO-J2348-3054.ms"),
+    params.msdir.resolve("QSO-J2356+0017.ms"),
     //params.msdir.resolve("QSO-J2356+0023.ms"),
     //params.msdir.resolve("QSO-J2356-0622.ms"),
 ]

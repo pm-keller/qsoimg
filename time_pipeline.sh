@@ -1,2 +1,2 @@
-sleep 10800
-../../Software/nextflow run pipeline.nf -resume -with-report
+sleep 10000
+../../Software/nextflow run pipeline.nf -resume
