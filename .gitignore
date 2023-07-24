@@ -13,3 +13,4 @@ nbooks/*.ms/
 nbooks/*.tb/
 nbooks/*.fits/
 nbooks/.ipynb_checkpoints/
+tables/
