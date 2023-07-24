@@ -31,6 +31,7 @@ parser.add_argument('--first', type=str, default="", help='Path to FIRST regions
 parser.add_argument('--cell', type=float, default=0.3, help='Cell size in arcsec, e.g. 0.3.')
 parser.add_argument('--imsize', type=int, default=12144, help='Image size in pixels, e.g. 8192.')
 parser.add_argument('--radius', type=float, help='Radius in arcmin above which sources will be treated as outlier sources.')
+parser.add_argument('--finalmask', type=float, default=20.48, help='Radius of central mask for final imaging in arcmin.')
 args = parser.parse_args()
 
 
@@ -116,13 +117,15 @@ if args.first != "" and os.path.exists(args.first):
     with open(args.first) as file:
         ma_regions = [regions[0],] + [line.rstrip() for line in file][1:]
 
-print(ma_regions)
-
+ma_regions_final = ma_regions + [f"circle [[{c0.ra.deg}deg, {c0.dec.deg}deg], {args.finalmask}arcmin] coord=J2000, corr=[I], linewidth=2, linestyle=-, symsize=1, symthick=1, color=d9822b, font=Helvetica, fontsize=10, fontstyle=bold, usetex=false",]
+print(ma_regions_final)
 # save new CRTF region files for the corresponding lists
 with open(args.regions + "-out.txt", mode='wt') as wfile:
     wfile.write('\n'.join(out_regions))
 with open(args.regions + "-mask.txt", mode='wt') as wfile:
     wfile.write('\n'.join(ma_regions))
+with open(args.regions + "-mask-final.txt", mode='wt') as wfile:
+    wfile.write('\n'.join(ma_regions_final))
 with open(args.regions + "-outlierfile.txt", mode='wt') as wfile:
     wfile.write('\n'.join(outstr1_list))
 with open(args.regions + "-outliers.txt", mode='wt') as wfile:
@@ -133,7 +136,10 @@ if os.path.exists(args.regions+"-tmp.im"):
     shutil.rmtree(args.regions+"-tmp.im")
 if os.path.exists(args.regions+"-mask.im"):
     shutil.rmtree(args.regions+"-mask.im")
+if os.path.exists(args.regions+"-mask-final.im"):
+    shutil.rmtree(args.regions+"-mask-final.im")
     
 casatasks.importfits(args.image, imagename=args.regions+"-tmp.im")
-casatasks.makemask(inpimage=args.regions+"-tmp.im", inpmask=args.regions+"-mask.txt",  mode="copy", output=args.regions+"-mask.im")
+casatasks.makemask(inpimage=args.regions+"-tmp.im", inpmask=args.regions+"-mask.txt",  mode="copy", output=args.regions+"-mask.im", overwrite=True)
+casatasks.makemask(inpimage=args.regions+"-tmp.im", inpmask=args.regions+"-mask-final.txt",  mode="copy", output=args.regions+"-mask-final.im", overwrite=True)
 shutil.rmtree(args.regions+"-tmp.im")

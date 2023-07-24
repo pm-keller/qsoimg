@@ -25,6 +25,8 @@ parser.add_argument('--ms', type=str, help='Path to measurement set.')
 parser.add_argument('--nself', type=int, default=3, help='Number of self-calibration tables to apply. Default is 3.')
 parser.add_argument('--dir', type=str, help='Directory where self-calibration tables are stored.')
 parser.add_argument('--nspw', type=int, default=9, help='Number of spectral windows. Default is 9.')
+parser.add_argument('--reverse', help='Invert calibration tables before applying.', action='store_true')
+parser.set_defaults(reverse=False)
 args = parser.parse_args()
 
 gaintables = []
@@ -34,6 +36,7 @@ spwmaps = []
 for round in range(args.nself):
     for mode in ["G", "T", "S", "ST"]:
         gaintbpath = os.path.join(args.dir, f"selfcal-{round}-{mode}.tb")
+        print(gaintbpath)
 
         if os.path.exists(gaintbpath):
             gaintables.append(gaintbpath)
@@ -44,8 +47,8 @@ for round in range(args.nself):
                 spwmaps.append(args.nspw * [0,])
 
 # copy measurement set to self-calibration directory
-mstmp = os.path.join(args.dir, f"{args.ms.split('/')[-1][:-3]}-selfcal-{args.nself-1}-tmp.ms")
-ms = os.path.join(args.dir, f"{args.ms.split('/')[-1][:-3]}-selfcal-{args.nself-1}.ms")
+mstmp = f"{args.ms.split('/')[-1][:-3]}-selfcal-{args.nself-1}-tmp.ms"
+ms = f"{args.ms.split('/')[-1][:-3]}-selfcal-{args.nself-1}.ms"
 
 if os.path.exists(mstmp):
     shutil.rmtree(mstmp)

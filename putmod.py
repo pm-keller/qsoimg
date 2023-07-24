@@ -26,10 +26,11 @@ tb = casatools.table()
 
 # get model data to be added
 tb.open(args.take)
-model = tb.getcol("DATA")
+model = tb.getcol("MODEL_DATA")
 tb.close()
 
 # put data to model column
+casatasks.setjy(args.add, fluxdensity=[0, 0, 0, 0], usescratch=True)
 tb.open(args.add, nomodify=False)
 tb.putcol("MODEL_DATA", model)
 tb.close()

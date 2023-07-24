@@ -23,7 +23,7 @@ from scipy.interpolate import interp1d
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ms', type=str, help='Measurement set.')
-parser.add_argument('--solint_min', type=float, help='Minimum solution interval.')
+parser.add_argument('--solint_min', type=float, help='Minimum solution interval in seconds.')
 parser.add_argument('--refant', type=str, help='Reference antenna.', default="ea19")
 parser.add_argument('--calmode', type=str, help='Calibration mode "p" or "ap" (phase or phase + amplitude).', default="p")
 parser.add_argument('--solmode', type=str, help='Solve mode, e.g. "R", "L1" or "L1R" for more robustness', default="R")

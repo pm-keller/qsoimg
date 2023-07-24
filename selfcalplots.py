@@ -48,3 +48,6 @@ with open('finished.txt', 'r') as file:
                     for antenna in ["1~9", "10~19", "19~26"]:
                         casaplotms.plotms(selfcalfile, xaxis="time", yaxis="phase", xconnector="line", coloraxis=cax, iteraxis="antenna", antenna=antenna, gridrows=3, gridcols=3, plotfile=plotfile, overwrite=True, highres=True, showgui=False)
 
+                        if rnd > 1:
+                            plotfileamp = os.path.join(selfcaldir, f"selfcal-{rnd}-{mode}-amp.png")
+                            casaplotms.plotms(selfcalfile, xaxis="time", yaxis="amplitude", xconnector="line", coloraxis=cax, iteraxis="antenna", antenna=antenna, gridrows=3, gridcols=3, plotfile=plotfileamp, overwrite=True, highres=True, showgui=False)

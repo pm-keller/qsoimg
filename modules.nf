@@ -16,7 +16,7 @@ process mkdir {
   path ms
 
   script:
-  obsname = ms.getSimpleName()
+  obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
   imagingDir = params.root.resolve("imaging/")
   cleanDir = imagingDir.resolve("${obsname}/clean/")
   flaggingDir = imagingDir.resolve("${obsname}/flagging/")
@@ -75,41 +75,86 @@ process aoflagger {
   """
 }
 
+//process wscleanInspect {
+//  publishDir {params.root.resolve("inspect/${obsname}")}, mode: 'copy'
+//  cpus {"${ncpu}"}
+//  cache = 'lenient'
+//  errorStrategy 'ignore'
+//
+//  input:
+//  path ms
+//  val ncpu
+//
+//  output:
+//  path imfile
+//
+//  when:
+//  obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
+//  imname = "${obsname}.inspect"
+//  imfile = file(params.root.resolve("inspect/${obsname}/${imname}-MFS-image.fits"))
+//  !(imfile.exists())  
+//
+//  """
+//  wsclean -name '${imname}' \
+//  -size 8192 8192 \
+//  -join-channels \
+//  -channels-out 3 \
+//  -scale 1asec \
+//  -taper-gaussian 1asec \
+//  -use-wgridder \
+//  -parallel-gridding $ncpu \
+//  -weight briggs 0.0 \
+//  $ms
+//
+//  rm -rf *.im-000*-*.fits
+//  rm -rf *.im*dirty.fits
+//  rm -rf *.im*psf.fits
+//  """
+//}
+
 process wscleanInspect {
-  publishDir {params.root.resolve("inspect/${obsname}")}, mode: 'copy'
+  cpus {"${ncpu}"}
   cache = 'lenient'
   errorStrategy 'ignore'
 
   input:
   path ms
+  val cell
+  val size
+  val briggs
+  val ncpu
 
   output:
-  path imfile
+  path ms, emit: ms
 
-  when:
-  obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
-  imname = "${obsname}.inspect"
-  imfile = file(params.root.resolve("inspect/${obsname}/${imname}-MFS-image.fits"))
-  !(imfile.exists())  
+  script:
+  obsname = ms.getSimpleName()
+  imname = "${ms.getSimpleName()}.im"
+  inspectDir = params.root.resolve("inspect/${obsname}/")
 
   """
-  wsclean -name '${imname}' \
-  -size 8192 8192 \
+  wsclean -name "${imname}" \
+  -size $size $size \
+  -niter 0 \
+  -weight briggs $briggs \
+  -scale "${cell}arcsec" \
+  -taper-gaussian 1.5asec \
+  -use-wgridder \
   -join-channels \
   -channels-out 3 \
-  -scale 1asec \
-  -taper-gaussian 1asec \
-  -use-wgridder \
-  -parallel-gridding 4 \
-  -weight briggs 0.0 \
+  -parallel-gridding $ncpu \
+  -parallel-reordering $ncpu \
+  -no-update-model-required \
   $ms
 
   rm -rf *.im-000*-*.fits
   rm -rf *.im*dirty.fits
   rm -rf *.im*psf.fits
+  rm -rf *.im*model.fits
+  rm -rf *.im*residual.fits
+  cp -rf *.fits $inspectDir
   """
 }
-
 
 process wscleanDirty {
   cpus {"${ncpu}"}
@@ -128,10 +173,10 @@ process wscleanDirty {
   path '*image.fits', emit: dirty
 
   when:
-  obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
+  obsname = ms.getSimpleName()
   finished = file(projectDir.resolve('finished.txt'))
   obsnames = finished.readLines()
-  !(obsnames.contains(obsname))
+  //!(obsnames.contains(obsname))
 
   script:
   imname = "${ms.getSimpleName()}.im"
@@ -166,7 +211,6 @@ process getRegions {
 
   input:
   path ms
-  path imfile
   val rout // radius in arcmin above which sources should be treated as outliers
 
   output:
@@ -175,20 +219,49 @@ process getRegions {
   path "*-regions-outliers.txt", emit: outliers
   path "*-regions-mask.im", emit: mask
 
-  when:
+  script:
   obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
+  imfile = params.root.resolve("imaging/${obsname}/clean/${obsname}.im-MFS-image.fits")
   regions = file(params.root.resolve("inspect/${obsname}/${obsname}-regions"))
   first = file(params.root.resolve("regions/FIRST/${obsname}-regions.txt"))
-  regions.exists()
 
   """
-  $params.pythonpath.projdir $projectDir/regions.py --regions $regions --first $first --ms $ms --radius $rout --image $imfile
+  $params.pythonpath.projdir $params.root/pipeline/regions.py --regions $regions --first $first --ms $ms --radius $rout --image $imfile
   cp -rf ${regions}* .
 
   """
 }
 
+process makeFinalMask {
+  cache = 'lenient'
+  errorStrategy 'ignore'
+
+  input:
+  path ms
+  path imfile
+  val rout // radius in arcmin above which sources should be treated as outliers
+
+  output:
+  path ms, emit: ms
+  path "*-regions-mask-final.txt", emit: regions
+
+  script:
+  obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
+  regions = file(params.root.resolve("inspect/${obsname}/${obsname}-regions"))
+
+  """
+  import shutil
+  import casatasks
+
+  casatasks.importfits("$imfile", imagename="${regions}-tmp.im")
+  casatasks.makemask(inpimage="${regions}-tmp.im", inpmask=a"${regions}-mask-final.txt",  mode="copy", output="${regions}-mask-final.im")
+  shutil.rmtree("${regions}-tmp.im")  
+  shutil.copytree("${regions}-mask-final.im", "${obsname}-regions-mask-final.im")
+  """
+}
+
 process wscleanStokesV {
+  cpus {"${ncpu}"}
   cache = 'lenient'
   errorStrategy 'ignore'
 
@@ -212,25 +285,17 @@ process wscleanStokesV {
   """
   wsclean -name "${imname}" \
   -size $size $size \
-  -niter 1 \
-  -auto-mask 4 \
-  -auto-threshold 0.3 \
-  -mgain 0.8 \
-  -gain 0.1 \
+  -niter 0 \
+  -pol V \
   -weight briggs $briggs \
   -scale "${cell}arcsec" \
   -taper-gaussian 1.5asec \
   -use-wgridder \
   -join-channels \
   -channels-out 9 \
-  -deconvolution-channels 9 \
-  -fit-spectral-pol 3 \
-  -parallel-deconvolution 2048 \
-  -deconvolution-threads $ncpu \
+  -no-update-model-required \
   -parallel-gridding $ncpu \
   -parallel-reordering $ncpu \
-  -no-update-model-required \
-  -save-source-list \
   $opt \
   $ms
 
@@ -265,7 +330,6 @@ process wsclean {
   path ms, emit: ms
   path '*MFS-image.fits', emit: image
   path '*MFS-image-pb.fits', emit: image_pb, optional: true
-  path '*MFS-residual.fits', emit: res
   path '*sources.txt', emit: srcs
 
   script:
@@ -273,6 +337,10 @@ process wsclean {
   imname = "${ms.getSimpleName()}.im"
   cleanDir = params.root.resolve("imaging/${obsname}/clean/")
 
+  if(mask == "final") {
+    mask = file(params.root.resolve("inspect/${obsname}/${obsname}-regions-mask-final.im"))
+    opt = opt + " -casa-mask $mask"
+  }
   if(mask == true) {
     mask = file(params.root.resolve("inspect/${obsname}/${obsname}-regions-mask.im"))
     opt = opt + " -casa-mask $mask"
@@ -307,7 +375,6 @@ process wsclean {
   $ms
 
   # remove output channel images and dirty images to free up space
-  rm -rf *.im-000*-*.fits
   rm -rf *.im-*dirty.fits
   rm -rf *.im-*psf.fits
   cp -rf *.fits $cleanDir
@@ -338,7 +405,7 @@ process predict {
   # make copy of measurement set to store residual
   cp -rL $ms $msmod
 
-  # predict sources from main field
+  # predict sources 
   $params.pythonpath.container -c "import casatasks; casatasks.setjy('$msmod', fluxdensity=[0, 0, 0, 0], usescratch=True)"
 
   for i in \$(seq 0 8);
@@ -361,7 +428,7 @@ process imageOutliers {
   val ncpu
 
   output:
-  path 'SRC*'
+  path 'SRC*', optional: true
   path "${imname}-sources-all.txt", emit: srcs
   path "${imname}-outliers.txt", emit: outliers
   path msmod, emit: ms
@@ -391,15 +458,15 @@ process imageOutliers {
 
   # compute residuals and image outliers
   $params.pythonpath.container -c "import casatasks; casatasks.uvsub('$msres')"
-  bash $projectDir/srcsub.sh $msres $msmod $outliers $automask $autothresh $ncpu
+  bash $params.root/pipeline/srcsub.sh $msres $msmod $outliers $automask $autothresh $ncpu
 
   # merge source list
-  bash $projectDir/mergesourcedb.sh $imname
+  bash $params.root/pipeline/mergesourcedb.sh $imname
 
   # remove residual measurement set
   rm -rf $msres
 
-  cp -rf SRC* $cleanDir
+  cp -rf SRC* $cleanDir | true
   cp -rf *.txt $cleanDir
   """
 }
@@ -457,7 +524,6 @@ process getInitSolInt {
   """
   #! $params.pythonpath.projdir
 
-  import pickle
   import numpy as np
   import casatools
   import casatasks
@@ -539,7 +605,6 @@ process selfCal {
   #! $params.pythonpath.container
 
   import os
-  import glob
   import shutil
   import casatasks
   import casatools
@@ -567,9 +632,9 @@ process selfCal {
     N = 2
 
   solintG = N * max(solint_dict["G"], 36 * solint_dict["ST"])
-  solintT = N * max(solint_dict["ST"], 18 * solint_dict["ST"])
+  solintT = N * max(solint_dict["T"], 18 * solint_dict["ST"])
   solintS = N * max(solint_dict["S"], 2 * solint_dict["ST"])
-  solintST = min(N * solint_dict["ST"], ttot)
+  solintST = N * solint_dict["ST"]
 
   gaintables, spwmaps = [], []
 
@@ -683,6 +748,30 @@ process selfCal {
   """
 }
 
+process applyCal {
+  cache = 'lenient'
+  errorStrategy 'ignore'
+
+  input:
+  path ms
+  val rnd
+
+  output:
+  path "${obsname}-selfcal-${rnd - 1}.ms", emit: ms
+  path "${obsname}-selfcal-${rnd - 2}.im-sources-all.txt", emit: srcs
+
+  script:
+  obsname = (ms =~ /QSO-J[0-9]+[+-]+[0-9]+/)[0]
+  srcs =  params.root.resolve("imaging/${obsname}/clean/${obsname}-selfcal-${rnd - 2}.im-sources-all.txt")
+  selfcal = "${obsname}-selfcal-${rnd - 1}.ms"
+  selfcalDir = params.root.resolve("imaging/${obsname}/selfcal")
+
+  """
+  $params.pythonpath.projdir $params.root/pipeline/applycal.py --ms $ms --nself $rnd --dir $selfcalDir
+  cp $srcs .
+  """
+}
+
 process flagRFI {
   cache = 'lenient'
   errorStrategy 'ignore'
@@ -701,7 +790,7 @@ process flagRFI {
   flaggingDir = params.root.resolve("imaging/${obsname}/flagging/")
 
   """
-  $params.pythonpath.container $projectDir/flagresidual.py --ms $ms  
+  $params.pythonpath.container $params.root/pipeline/flagresidual.py --ms $ms  
 
   # copy results to field flagging directory
   cp -rf *npy $flaggingDir
@@ -720,8 +809,6 @@ process removeFiles {
 
   """
   echo $obsname >> $projectDir/finished.txt
-
-  sleep 60
 
   mv $params.root/imaging/$obsname/clean/$obsname-res.im-MFS-image.fits $params.root/final/images/
   mv $params.root/imaging/$obsname/clean/$obsname-res.im-MFS-image-pb.fits $params.root/final/images-pb/

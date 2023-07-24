@@ -7,6 +7,8 @@ casa/
 work/
 .nextflow/
 briggs_experiment/
+spix-analysis/
+redo/
 nbooks/*.ms/
 nbooks/*.tb/
 nbooks/*.fits/
