@@ -177,6 +177,7 @@ redo/
 nbooks/*.ms/
 nbooks/*.tb/
 nbooks/*.fits/
+nbooks/QSO*
 nbooks/.ipynb_checkpoints/
 redundant_scripts/
 tables/
