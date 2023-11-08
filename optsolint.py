@@ -9,7 +9,7 @@ Author: Pascal M. Keller
 Affiliation: Cavendish Astrophysics, University of Cambridge, UK
 Email: pmk46@cam.ac.uk
 
-Description: Find optimal self-calibration solution interval for a measurement set.
+Description: Estimate optimal self-calibration solution interval for a measurement set.
 
 """
 
@@ -202,7 +202,6 @@ def get_gain_data(caltable):
 def get_window_sizes(N):
     """Get window sizes for data smoothing.
 
-
     Parameters
     ----------
     Nmax : int
@@ -279,10 +278,16 @@ def estimate_variances_from_mavg(time, data):
         time_nt, data_nt = moving_average(time, data, dt)
         data_nt = interp1d(time_nt, data_nt, fill_value="extrapolate", axis=0)(time)[:, [1, 0]]
 
-        varI.append(np.nanvar(data - data_nt) - var0 * (1 + nt / N / dt))
+        # compute noise sample variances and covariances
+        vart = np.nanvar((data_nt[:, 0] - data_nt[:, 1]) / np.sqrt(2))
+        covt = np.cov((data_nt[:, 0] - data_nt[:, 1]).reshape(-1) / np.sqrt(2), (data[:, 0] - data[:, 1]).reshape(-1) / np.sqrt(2))
+        covt = np.real((covt[0, 1] + covt[1, 0]))
+
+        #varI.append(np.nanvar(data - data_nt) - 1 * var0 * (dt - 1) / dt)
+        varI.append(np.nanvar(data - data_nt) - var0 - vart + covt)
         varN.append(var0 * nt / N / dt)
 
-    varI.append(np.nanvar(data) - var0 * (1 + 1 / N))
+    varI.append(np.nanvar(data))
     varN.append(var0 / N)
 
     varTot = np.array(varI) + np.array(varN)
@@ -320,12 +325,12 @@ def get_optimal_solints(solints, varI, varN, ttot, nspw=9):
     solints = ttot / (ttot // solints)
 
     # calmode "G"
-    varTotG = varI + varN * 2 * nspw
+    varTotG = varI + varN * nspw
     iminG = np.argmin(varTotG)
     solintG = solints[iminG]
 
     # calmode "T"
-    varTotT = varI + varN * nspw
+    varTotT = varI + varN * nspw / 2
     iminT = np.argmin(varTotT)
     solintT = solints[iminT]
 

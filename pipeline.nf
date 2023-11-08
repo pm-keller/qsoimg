@@ -28,12 +28,12 @@ workflow imagingPipeline {
   // FIRST ROUND
   //mkdir(ms)
   //wscleanInspect(ms, 1, 8192, -0.5, 4)
-  aoflagger(ms, params.aostrat)
-  wscleanDirty(ms, params.cell, params.imsize, -0.5, 32)
-  getRegions(wscleanDirty.out.ms, params.imreg.round(2))
+  //aoflagger(ms, params.aostrat)
+  //wscleanDirty(ms, params.cell, params.imsize, -0.5, 32)
+  getRegions(ms, params.imreg.round(2))
   wsclean1(getRegions.out.ms, params.cell, params.imsize, true, 10, 1, -0.5, 32, "-no-negative -local-rms")
   imageOutliers1(wsclean1.out.ms, wsclean1.out.srcs, 10, 1, 32)
-  getInitSolInt(wsclean1.out.ms, wsclean1.out.image, 10.0)
+  getInitSolInt(imageOutliers1.out.ms, wsclean1.out.image, 10.0)
   getSolInt(imageOutliers1.out.ms, "p")
   selfCal1(getSolInt.out.ms, 0, "p", 5)
   
@@ -45,11 +45,11 @@ workflow imagingPipeline {
   // THIRD ROUND
   wsclean3(selfCal2.out.ms, params.cell, params.imsize, true, 5, 0.5, -0.5, 32, "-no-negative -local-rms")
   imageOutliers3(wsclean3.out.ms, wsclean3.out.srcs, 5, 0.5, 32)
-  selfCal3(imageOutliers3.out.ms, 2, "ap", 5.5)
+  selfCal3(imageOutliers3.out.ms, 2, "ap", 5)
   flagRFI(selfCal3.out.ms, params.aostrat)
 
   // FOURTH ROUND
-  wsclean4(flagRFI.out.ms, params.cell, params.imsize, false, 5, 0.5, -0.5, 32, "-local-rms")
+  wsclean4(selfCal3.out.ms, params.cell, params.imsize, false, 5, 0.5, -0.5, 32, "-local-rms")
   imageOutliers4(wsclean4.out.ms, wsclean4.out.srcs, 5, 0.5, 32)
   selfCal4(imageOutliers4.out.ms, 3, "ap", 5)
 
@@ -74,22 +74,20 @@ workflow imagingPipelineNoSelfCal {
   getRegions(wscleanDirty.out.ms, params.imreg.round(2))
   wsclean1(getRegions.out.ms, params.cell, params.imsize, true, 10, 1, -0.5, 32, "-no-negative -local-rms")
   imageOutliers1(wsclean1.out.ms, wsclean1.out.srcs, 10, 1, 32)
-  subtractOutliers(imageOutliers1.out.ms, 32)
-  flagRFI(subtractOutliers.out.ms, params.aostrat)
+  //subtractOutliers(imageOutliers1.out.ms, 32)
+  flagRFI(imageOutliers1.out.ms, params.aostrat)
   
 
   // FINAL IMAGING
   wscleanFinal2(flagRFI.out.ms, params.cell, params.imsize, "final", 4, 0.3, -0.5, 32, "-apply-primary-beam -multiscale") 
   wscleanStokesV(wscleanFinal2.out.ms, params.cell, params.imsize, -0.5, 1, "") 
-  removeFiles(wscleanStokesV.out.ms)
+  //removeFiles(wscleanStokesV.out.ms)
 
 }
 
 workflow {
   mslist = [
-    params.msdir.resolve("QSO-J0818+1722.ms"), 
-    params.msdir.resolve("QSO-J0828+2633.ms"),
-    params.msdir.resolve("QSO-J0844-0052.ms")
+    params.msdir.resolve("QSO-J0818+1722.ms"),    
   ]
 
   msChannel = Channel.fromPath(mslist, type: 'dir')

@@ -17,9 +17,11 @@ import os
 import csv
 import pickle
 import numpy as np
+
 from scipy.constants import c
 from scipy.special import erf, erfinv
 from scipy.optimize import curve_fit
+
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
@@ -27,17 +29,24 @@ from astropy.table import QTable
 from astroquery.ipac.irsa import Irsa
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
+
 import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--finaldir', default='/rds/user/pmk46/hpc-work/19A-056/final', type=str, help='Directory where final images are stored.')
 parser.add_argument('--imdir', default='/rds/user/pmk46/hpc-work/19A-056/imaging', type=str, help='Directory where intermediate imaging data is stored.')
 parser.add_argument('--cell', default=0.3, type=str, help='Cell size of image in arcsec')
-parser.add_argument('--cutout', default=128, type=str, help='Pixel size of cutout images.')
 
 args = parser.parse_args()
 
+# list of detected sources
+det_names = ["QSO-J0100+2802", "QSO-J1034-1425", "QSO-J1427+3312", "QSO-J1429+5447", "QSO-J1558-0724", "QSO-J1602+4228", "QSO-J2318-3113", "QSO-J2348-3054"]
+
 def get_target_pixel(hdu, target_coord_str):
+    """ 
+    Convert sky coordinates to pixel coordinates.
+    """
+
     # Extract the image data and header
     image_header = hdu.header
 
@@ -51,7 +60,7 @@ def get_target_pixel(hdu, target_coord_str):
     target_pixel = wcs.all_world2pix(target_coord.ra.deg, target_coord.dec.deg, 0, 0, 1)
     
     # Round the pixel coordinates to the nearest integer
-    target_pixel = np.round(target_pixel).astype(int) - np.array([1, 1, 1, 1])
+    target_pixel = np.array(target_pixel).astype(float) - np.array([1, 1, 1, 1])
 
     return target_pixel
 
@@ -69,27 +78,27 @@ def get_cutout(data, cutout, pc):
 
     return data[nstart0:nend0, nstart1:nend1]
 
-# Define the 2D Gaussian function
-def gaussian_2d(xy, amplitude, xo, yo, sigma_x, sigma_y, theta):
+def gaussian_2d(xy, amplitude, x0, y0):
+    """ 
+    2D Gaussian function
+    """
+
     x, y = xy
-    xo = float(xo)
-    yo = float(yo)
-    a = (np.cos(theta)**2) / (2 * sigma_x**2) + (np.sin(theta)**2) / (2 * sigma_y**2)
-    b = -(np.sin(2 * theta)) / (4 * sigma_x**2) + (np.sin(2 * theta)) / (4 * sigma_y**2)
-    c = (np.sin(theta)**2) / (2 * sigma_x**2) + (np.cos(theta)**2) / (2 * sigma_y**2)
-    g = amplitude * np.exp(- (a * ((x - xo)**2) + 2 * b * (x - xo) * (y - yo) + c * ((y - yo)**2)))
+    x0 = float(x0)
+    y0 = float(y0)
+    a = (np.cos(theta)**2) / (2 * sigmin**2) + (np.sin(theta)**2) / (2 * sigmaj**2)
+    b = -(np.sin(2 * theta)) / (4 * sigmin**2) + (np.sin(2 * theta)) / (4 * sigmaj**2)
+    c = (np.sin(theta)**2) / (2 * sigmin**2) + (np.cos(theta)**2) / (2 * sigmaj**2)
+    g = amplitude * np.exp(- (a * ((x - x0)**2) + 2 * b * (x - x0) * (y - y0) + c * ((y - y0)**2)))
+
     return g.ravel()
 
-def gauss_fit_2d(data, bounds):
-    N = data.shape[0]
-
-    # Generate some sample data
-    x = np.arange(-N//2, N//2)
-    y = np.arange(-N//2, N//2)
-    X, Y = np.meshgrid(x, y)
-
+def gauss_fit_2d(XY, data, bounds):
+    """ 
+    Fit a 2D Gaussian to image cutout data
+    """
     # Perform the Gaussian fit
-    popt, pcov = curve_fit(gaussian_2d, (X, Y), data.ravel(), p0=(0, 0, 0, 5, 5, 0), bounds=bounds)
+    popt, pcov = curve_fit(gaussian_2d, XY, data.ravel(), p0=(0, 0, 0), bounds=bounds)
 
     # Extract the fitted parameters
     return popt    
@@ -111,15 +120,15 @@ spitzer_name = np.array(spitzer_name)
 spitzer_S = np.array(spitzer_S)
 spitzer_errors = np.array(spitzer_errors)
 
+# read quasar catalog daa
 qso_catalog = QTable.read('tables/Quasar_catalog_Banados+16_Matsuoka+19a_Matsuoka+19b_Wang+18_Wang+19_Reed+19_Yang+20.txt', format='ascii')
-cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)
 
-det_names = ["QSO-J0100+2802", "QSO-J1034-1425", "QSO-J1427+3312", "QSO-J1429+5447", "QSO-J1558-0724", "QSO-J1602+4228", "QSO-J2318-3113", "QSO-J2348-3054"]
+# define cosmology 
+cosmo = FlatLambdaCDM(H0=70 * u.km / u.s / u.Mpc, Tcmb0=2.725 * u.K, Om0=0.3)   
 
 with open('qsolist.txt', 'r') as file:
     for line in file:
         obsname = line.strip()
-        print(obsname)
 
         catalog_name = list(obsname)
         catalog_name[3] = "_"
@@ -132,9 +141,8 @@ with open('qsolist.txt', 'r') as file:
         ra = row["RA"].value[0]
         dec = row["Dec"].value[0]
         dl = cosmo.luminosity_distance(z).to("m").value
-        distance_modulus = 5 * np.log10(dl * 3.240756e-17) - 5  # Convert Mpc to parsecs
         Lsol = 3.828e26
-        Lo = 10**((4.83 - Mo) / 2.5)    
+        Lo = 10**((4.83 - Mo) / 2.5) 
 
         # get Spitzer flux density
         spitzer_idx = np.where(spitzer_name == catalog_name)[0]
@@ -146,20 +154,22 @@ with open('qsolist.txt', 'r') as file:
             spitzer = np.nan
             spitzer_err = np.nan
 
-        spitzer_AB = (8.926 - 2.5 * np.log10(spitzer))
-        spitzer_AB_err = spitzer_err / spitzer / np.log(10)
+        spitzer_AB = (8.9 - 2.5 * np.log10(spitzer / 1e6))
+        spitzer_AB_err = 2.5 * spitzer_err / spitzer / np.log(10)
 
         # get ALLWISE flux density
         irsa_query = Irsa.query_region(f"{ra} {dec}", radius=2*u.arcsec, catalog="allwise_p3as_psd")
         allwise = irsa_query["w1mpro"].value
         allwise_err = irsa_query["w1sigmpro"].value
-        print(allwise, allwise_err)
 
         # query reject table
         if len(allwise) == 0:
             irsa_query = Irsa.query_region(f"{ra} {dec}", radius=2*u.arcsec, catalog="allwise_p3as_psr")
             allwise = irsa_query["w1mpro"].value
             allwise_err = irsa_query["w1sigmpro"].value
+
+            if len(allwise) == 1:
+                print(obsname, " REJECT TABLE")
 
         if len(allwise) == 1:
             allwise = allwise[0]
@@ -171,8 +181,8 @@ with open('qsolist.txt', 'r') as file:
             allwise = np.nan
             allwise_err = np.nan       
 
+        # convert to AB magnitudes
         allwise_AB = allwise + 2.699
-        print(allwise, allwise_AB, allwise_err)
 
         # FITS image files
         imfits = os.path.join(args.finaldir, "images", f"{obsname}-res.im-MFS-image.fits")
@@ -186,7 +196,12 @@ with open('qsolist.txt', 'r') as file:
             hdu = fits.open(imfits)[0]
             header = hdu.header
             image_data = hdu.data[0, 0]
-            beam = header["BMIN"] * header["BMAJ"] / (header["CDELT2"] * 2.355)**2
+
+            # get synthesised beam parameters
+            sigmin = header["BMIN"] / (2.355 * header["CDELT2"])
+            sigmaj = header["BMAJ"] / (2.355 * header["CDELT2"])
+            beam = sigmin * sigmaj
+            theta = np.pi - header["BPA"] * np.pi / 180
             
             # get location and value of peak flux in image
             peak_flux_px = np.unravel_index(np.argmax(image_data), image_data.shape)
@@ -196,38 +211,68 @@ with open('qsolist.txt', 'r') as file:
 
             # get target pixel
             pc = get_target_pixel(hdu, f"{ra} {dec}")[[0, 1]]
-            fluxpeak = (image_data[pc[0], pc[1]] * 1e6).round(3) # uJy
-            blank = (image_data[pc[0], pc[1] - 200] * 1e6).round(3) # uJy
+            pcr = np.round(pc, 0).astype(int)
+            pcd = pc - pcr
+            fluxpeak = (image_data[pcr[0], pcr[1]] * 1e6).round(3) # uJy
+            blank = (image_data[pcr[0], pcr[1] - 200] * 1e6).round(3) # uJy
 
             # generate cutout images
-            Nsmall = 9
-            image_data_small = get_cutout(image_data, Nsmall, pc)
-            image_data = get_cutout(image_data, args.cutout, pc)
+            Nsmall, Ntiny = 21, 13
+            image_data_small = get_cutout(image_data, Nsmall, pcr)
+            image_data_tiny = get_cutout(image_data, Ntiny, pcr)
+            image_data_blank = get_cutout(image_data, Nsmall, [pcr[0], pcr[1] - 200])
+            image_data = get_cutout(image_data, 41, pcr)
 
             # cutout statistics
             rms = (np.sqrt(np.mean(image_data**2)) * 1e6).round(1) # uJy
             mad = np.median(1.4826 * np.abs(image_data - np.median(image_data)) * 1e6).round(1) # uJy
 
             # frequency 
-            freq = header["CRVAL3"]
+            #freq = header["CRVAL3"]
+            freq = 1.6e9
             f0 = (1 + z) * freq
 
-            # Fit 2D Gaussian to central part of image
-            x = np.arange(-Nsmall//2, Nsmall//2)
-            y = np.arange(-Nsmall//2, Nsmall//2)
-            X, Y = np.meshgrid(x, y)
+            # spectral index
+            alpha = -0.75
 
-            amplitude, x_mean, y_mean, x_stddev, y_stddev, theta = gauss_fit_2d(image_data_small, bounds=([-1e5, -4, -4, 1, 1, -np.pi/4], [1e5, 4, 4, 8, 8, np.pi/4]))
-            fluxint = (amplitude * x_stddev * y_stddev / beam)
+
+            # Fit 2D Gaussian to central part of the image
+            x = np.arange(-Nsmall//2, Nsmall//2) + 1.0 + pcd[0]
+            y = np.arange(-Nsmall//2, Nsmall//2) + 1.0 + pcd[1]
+            X, Y = np.meshgrid(x, y)
+            
+            amplitude, x_mean, y_mean = gauss_fit_2d((X, Y), image_data_small, bounds=([-1e5, -3, -3], [1e5, 3, 3]))            
+            amplitude_fixed, _, _ = gauss_fit_2d((X, Y), image_data_small, bounds=([-1e5, -1e-16, -1e-16], [1e5, 1e-16, 1e-16]))
+            amplitude_blanks, _, _ = gauss_fit_2d((X, Y), image_data_blank, bounds=([-1e5, -1e-16, -1e-16], [1e5, 1e-16, 1e-16]))
+
+            # fitte in-band spectrum
+            if obsname == "QSO-J1427+3312":
+                amplitude = 1281 * 1e-6
+                fluxpeak = 1281
+                alpha = -1.43
+            elif obsname == "QSO-J1429+5447":
+                amplitude = 3003 * 1e-6
+                fluxpeak = 3003
+                alpha = -0.73
+            elif obsname == "QSO-J2318-3113":
+                amplitude = 637 * 1e-6
+                fluxpeak = 637
+                alpha = -1.48
+
+            # get integrated flux densities
+            fluxint = (amplitude * sigmin * sigmaj / beam)
+            fluxsum = np.sum(image_data_tiny) / beam / (2 * np.pi)
+
+            # estimate S/N
             snr_amp = (amplitude / mad * 1e6).round(2)
-            log_L_int = np.log10(4 * np.pi * dl**2 * 1e-26 * (5e9 / f0)**-0.75 * fluxint / (1+z) / 1e6 / Lsol * 5e9)
+
+            # integrated radio luminosity
+            log_L_int = np.log10(4 * np.pi * dl**2 * 1e-26 * (5e9 / f0)**alpha * fluxint / (1+z) / 1e6 / Lsol * 5e9)
             log_L_int_err = mad / fluxint / np.log(10)
 
-            if obsname in det_names:
-                fluxpeak = amplitude * 1e6
 
             # compute radio luminosity
-            log_L_nu = np.log10(4 * np.pi * dl**2 * 1e-26 * (5e9 / f0)**-0.75 * np.abs(fluxpeak) / (1+z) / 1e6)
+            log_L_nu = np.log10(4 * np.pi * dl**2 * 1e-26 * (5e9 / f0)**alpha * np.abs(fluxpeak) / (1+z) / 1e6)
             log_L_peak = log_L_nu + np.log10(5e9 / Lsol)
             log_L_peak_err = mad / fluxpeak / np.log(10)
             snr_peak = (fluxpeak / mad).round(2)
@@ -235,9 +280,10 @@ with open('qsolist.txt', 'r') as file:
 
             # compute upper limit
             E = erf(fluxpeak / mad / np.sqrt(2))
-            ul = mad * np.sqrt(2) * (erfinv(1 - (1 + E) * 0.002699796) + fluxpeak / mad / np.sqrt(2))
-            log_L_ul = np.log10(4 * np.pi * dl**2 * 1e-26 * (5e9 / f0)**-0.75 * ul  / 1e6 / (1+z) / Lsol * 5e9)
-            
+            #ul = mad * np.sqrt(2) * (erfinv(1 - (1 + E) * 0.002699796) + fluxpeak / mad / np.sqrt(2))
+            ul = 3 * mad
+            log_L_ul = np.log10(4 * np.pi * dl**2 * 1e-26 * (5e9 / f0)**alpha * ul  / 1e6 / (1+z) / Lsol * 5e9)
+
             # compute the luminosity at 4400A
             if not np.isnan(spitzer):
                 log_Lo = np.log10(4 * np.pi * dl**2 * 1e-26 * (36000 / 4400 / (1+z))**-0.5 * spitzer / 1e6 / (1+z) / Lsol * c / 4.4e-7)
@@ -268,19 +314,21 @@ with open('qsolist.txt', 'r') as file:
             flagging_before = os.path.join(flaggingdir, "flagging_flags_summary_before.npy")
             flagging_after = os.path.join(flaggingdir, "rflagavg_flags_summary_after.npy")
 
-            flagstats_before = np.load(flagging_before, allow_pickle=True).item()
-            flagstats_after = np.load(flagging_after, allow_pickle=True).item()
+            try:
+                flagstats_before = np.load(flagging_before, allow_pickle=True).item()
+                flagstats_after = np.load(flagging_after, allow_pickle=True).item()
+                flagstat_list = []
 
-            flagstat_list = []
+                for spw in flagstats_before["spw"]:
+                    flagstat_list.append((flagstats_after["spw"][spw]["flagged"] - flagstats_before["spw"][spw]["flagged"]) / flagstats_before["spw"][spw]["total"] * 100)
 
-            for spw in flagstats_before["spw"]:
-                flagstat_list.append((flagstats_after["spw"][spw]["flagged"] - flagstats_before["spw"][spw]["flagged"]) / flagstats_before["spw"][spw]["total"] * 100)
-
-            flagstat_avg = np.mean(flagstat_list).round(2)
+                flagstat_avg = np.mean(flagstat_list).round(2)
+            except:
+                flagstat_avg = 0
 
             # make tables
-            table1_row = (obsname, rms, mad, x_mean.round(2), y_mean.round(2), x_stddev.round(2), y_stddev.round(2), (amplitude * 1e6).round(0), (fluxint * 1e6).round(0), fluxpeak, blank, snr_peak, snr_amp, peak_flux, peak_flux_dist, solint, flagstat_avg)
-            table2_row = (obsname, z, fluxpeak * (1.4e9 / freq)**-0.75, mad * (1.4e9 / freq)**-0.75, ul * (1.4e9 / freq)**-0.75, Mo, allwise_AB, allwise_err, spitzer_AB, spitzer_AB_err, Lsgn, log_L_nu, log_L_peak, log_L_peak_err, log_L_ul, log_Lo, log_Lo_err, R, Rerr, Rul)
+            table1_row = (obsname, rms, mad, x_mean.round(2), y_mean.round(2), np.round(sigmin, 2), np.round(sigmaj, 2), np.round(amplitude * 1e6, 0), amplitude_fixed * 1e6, np.round(amplitude_blanks * 1e6, 0), np.round(fluxint * 1e6, 0), np.round(fluxsum * 1e6, 0), fluxpeak, blank, snr_peak, snr_amp, peak_flux, peak_flux_dist, solint, flagstat_avg)
+            table2_row = (obsname, z, freq, amplitude * 1e6, mad, ul, Mo, allwise_AB, allwise_err, spitzer_AB, spitzer_AB_err, Lsgn, log_L_nu, log_L_peak, log_L_peak_err, log_L_ul, log_Lo, log_Lo_err, R, Rerr, Rul)
 
             # append table rows
             with open('tables/table1.csv', 'a', newline='') as csvfile:

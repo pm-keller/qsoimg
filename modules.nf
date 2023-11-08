@@ -580,7 +580,6 @@ process getSolInt {
   """
 }
 
-
 process selfCal {
   cache = 'lenient'
   errorStrategy 'ignore'
